@@ -1,10 +1,4 @@
-/*************************************************************************
-	> File Name: kiddo.cpp
-	> Author: 
-	> Mail: 
-	> Created Time: 2020年01月28日 星期二 18时15分18秒
- ************************************************************************/
-
+#include <atomic>
 #include <iostream>
 #include <thread>
 #include <vector>
@@ -17,12 +11,13 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 
-using namespace std;
+#include "common.h"
+
 namespace kiddo {
 
 class Server {
 public:
-    Server():_fd_size(0) {}
+    Server():_fd_size(0),_custom_index(0) {}
     int io_td() {
         std::thread t(&kiddo::Server::io, this);
         t.join();
@@ -30,10 +25,9 @@ public:
     }
     void io();
 
-    int work() {
-        
-        return 0;
-    }
+    int work();
+
+    int work_callback();
 
     int listen_accept();
 
@@ -47,8 +41,28 @@ private:
     int _fd_size;
     unsigned int _epollfd;
     int _sockfd;
+    std::atomic<int> _custom_index; 
 
 };
+
+int Server::work() {
+    int cpu_core_num = get_cpu_core_num();
+    int thread_num = 2 * cpu_core_num + 1;
+    for (int i = 0; i < thread_num; ++i) {
+        std::thread td(&kiddo::Server::work_callback, this);
+        td.join();
+    }
+}
+int Server::work_callback() {
+    while (1) {
+        Fd fdd = _fd_queue[_custom_index];
+        _custom_index++;
+        if (_custom_index > 0) {
+            _custom_index = _custom_index/100;
+        }
+    }
+    return 0;
+}
 
 int Server::listen_accept() {
     int fd;
