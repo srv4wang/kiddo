@@ -8,16 +8,31 @@
 #include <stdlib.h>
 
 #include <netinet/in.h>
+#include <signal.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include "common.h"
 
 namespace kiddo {
+bool close_socket = false;
+
+void exit(int sig) {
+    printf("rec signl:%d\n", sig);
+    close_socket = true;
+    if (SIGINT == sig) {
+        signal(SIGINT, SIG_DFL);
+        raise(SIGINT);
+    }
+}
 
 class Server {
 public:
-    Server():_fd_size(0),_custom_index(0) {}
+    Server():_fd_size(0),_custom_index(0) {
+        //signal(SIGINT, kiddo::exit);
+    }
+    ~Server();
     int io_td() {
         std::thread t(&kiddo::Server::io, this);
         t.join();
@@ -45,21 +60,40 @@ private:
 
 };
 
+Server::~Server() {
+    if (close_socket) {
+        printf("close socket");
+        shutdown(_sockfd, SHUT_RDWR);
+        close(_sockfd);
+    }
+
+}
+
+
 int Server::work() {
     int cpu_core_num = get_cpu_core_num();
     int thread_num = 2 * cpu_core_num + 1;
+    printf("td:%d\n", thread_num);
     for (int i = 0; i < thread_num; ++i) {
         std::thread td(&kiddo::Server::work_callback, this);
-        td.join();
+        td.detach();
     }
 }
 int Server::work_callback() {
     while (1) {
-        Fd fdd = _fd_queue[_custom_index];
-        _custom_index++;
+        Fd fdd = _fd_queue[_custom_index++];
         if (_custom_index > 0) {
             _custom_index = _custom_index/100;
         }
+        int fd = fdd.fd;
+        if (fdd.status != 1) {
+            continue;
+        }
+        char buff[4096] = "";
+        // recv 
+        int num = recv(fd, buff, sizeof(buff), 0);
+        printf("%s\n", buff);
+        // send
     }
     return 0;
 }
@@ -105,13 +139,12 @@ void Server::io() {
     }
     _epollfd = epoll_create(10);
     struct epoll_event event_list[10];
-    int timeout = -1; // TODO
     while (1) {
         struct epoll_event event;
         event.data.fd = _sockfd;
         event.events = EPOLLIN|EPOLLET|EPOLLRDHUP;
         epoll_ctl(_epollfd, EPOLL_CTL_ADD, _sockfd, &event);
-        int ret = epoll_wait(_epollfd, event_list, 10, timeout);
+        int ret = epoll_wait(_epollfd, event_list, 10, -1);
         if (ret > 0) {
             for (int i = 0; i < ret; ++i) {
                 struct epoll_event event = event_list[i];
@@ -121,7 +154,7 @@ void Server::io() {
                     } else {
                         Fd f;
                         f.fd = event.data.fd;
-                        f.status = 0;
+                        f.status = 1;
                         _fd_queue[i++] = f;
                     }
                 }
@@ -130,7 +163,11 @@ void Server::io() {
         } else  {
             // 0:no event or -1:event failed
         }
-
+        if (close_socket) {
+            printf("close socket");
+            shutdown(_sockfd, SHUT_RDWR);
+            close(_sockfd);
+        }
     }
 
 }
@@ -141,6 +178,7 @@ void Server::io() {
 
 int main() {
     kiddo::Server srv;
+    srv.work();
     srv.io_td();
     
 }

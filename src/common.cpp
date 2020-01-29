@@ -1,11 +1,23 @@
+#include <sstream>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <fcntl.h>
 
 #include "common.h"
+
+std::string get_msg_id() {
+    static unsigned int id = 0;
+    id++;
+    std::stringstream ss;
+    ss<<time(NULL)<<id;
+    return ss.str();
+}
 
 int get_cpu_core_num() {
     char filename[] = "/proc/cpuinfo";
