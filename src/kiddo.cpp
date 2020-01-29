@@ -86,6 +86,7 @@ int Server::work_callback() {
         if (fd == 0) {
             continue;
         }
+        _fd_queue[index] = 0;
         char buff[4096] = "";
         // recv 
         int num = recv(fd, buff, sizeof(buff), 0);
