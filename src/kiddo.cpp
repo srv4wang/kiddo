@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #include "common.h"
+#include "ring_buffer.h"
 
 namespace kiddo {
 bool close_socket = false;
@@ -46,13 +47,8 @@ public:
 
     int listen_accept();
 
-    struct Fd{
-        int fd;
-        int status;
-    };
-
 private:
-    Fd _fd_queue[100];
+    RingBuffer<int> _fd_queue;
     int _fd_size;
     unsigned int _epollfd;
     int _sockfd;
@@ -81,14 +77,12 @@ int Server::work() {
 }
 int Server::work_callback() {
     while (1) {
-        Fd fdd = _fd_queue[_custom_index++];
-        if (_custom_index > 0) {
-            _custom_index = _custom_index/100;
-        }
-        int fd = fdd.fd;
-        if (fdd.status != 1) {
+        int index = _fd_queue.get();
+        int fd = _fd_queue[index];
+        if (fd == 0) {
             continue;
         }
+        _fd_queue[index] = 0;
         char buff[4096] = "";
         // recv 
         int num = recv(fd, buff, sizeof(buff), 0);
@@ -152,10 +146,7 @@ void Server::io() {
                     if (event.data.fd == _sockfd) {
                         listen_accept();
                     } else {
-                        Fd f;
-                        f.fd = event.data.fd;
-                        f.status = 1;
-                        _fd_queue[i++] = f;
+                        _fd_queue.put(event.data.fd);
                     }
                 }
             }
