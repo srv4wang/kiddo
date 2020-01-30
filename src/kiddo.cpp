@@ -85,8 +85,9 @@ int Server::work_cb() {
         if (buff[0] == '\0') {
             continue;
         }
-        printf("%s\n", buff);
         // send
+        printf("%s\n", buff);
+        send(fd, buff, sizeof(buff), 0);
     }
     return 0;
 }
@@ -101,11 +102,6 @@ int Server::listen_accept() {
     }
     struct epoll_event event;
     event.data.fd = fd;
-    event.events = EPOLLIN|EPOLLET|EPOLLRDHUP;
-    epoll_ctl(_epollfd, EPOLL_CTL_ADD, fd, &event);
-    // re add socketfd
-    //struct epoll_event event;
-    event.data.fd = _sockfd;
     event.events = EPOLLIN|EPOLLET|EPOLLRDHUP;
     epoll_ctl(_epollfd, EPOLL_CTL_ADD, fd, &event);
     return 0;
