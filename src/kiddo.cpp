@@ -18,51 +18,43 @@
 
 namespace kiddo {
 bool close_socket = false;
+int g_sockfd = 0;
 
 void exit(int sig) {
     printf("rec signl:%d\n", sig);
-    close_socket = true;
-    if (SIGINT == sig) {
-        signal(SIGINT, SIG_DFL);
-        raise(SIGINT);
-    }
+    printf("close socket");
+    shutdown(g_sockfd, SHUT_RDWR);
+    close(g_sockfd);
+    signal(sig, SIG_DFL);
+    raise(sig);
 }
 
 class Server {
 public:
-    Server():_fd_size(0),_custom_index(0) {
-        //signal(SIGINT, kiddo::exit);
+    Server():_epollfd(0),_sockfd(0) {
     }
     ~Server();
     int io_td() {
-        std::thread t(&kiddo::Server::io, this);
+        std::thread t(&kiddo::Server::io_cb, this);
         t.join();
         return 0;
     }
-    void io();
+    void io_cb();
 
     int work();
 
-    int work_callback();
+    int work_cb();
 
     int listen_accept();
 
 private:
     RingBuffer<int> _fd_queue;
-    int _fd_size;
     unsigned int _epollfd;
     int _sockfd;
-    std::atomic<int> _custom_index; 
 
 };
 
 Server::~Server() {
-    if (close_socket) {
-        printf("close socket");
-        shutdown(_sockfd, SHUT_RDWR);
-        close(_sockfd);
-    }
-
 }
 
 
@@ -71,11 +63,11 @@ int Server::work() {
     int thread_num = 2 * cpu_core_num + 1;
     printf("td:%d\n", thread_num);
     for (int i = 0; i < thread_num; ++i) {
-        std::thread td(&kiddo::Server::work_callback, this);
+        std::thread td(&kiddo::Server::work_cb, this);
         td.detach();
     }
 }
-int Server::work_callback() {
+int Server::work_cb() {
     while (1) {
         int index = _fd_queue.get();
         if (index < 0) {
@@ -118,25 +110,29 @@ int Server::listen_accept() {
     epoll_ctl(_epollfd, EPOLL_CTL_ADD, fd, &event);
     return 0;
 }
-void Server::io() {
+void Server::io_cb() {
     struct sockaddr_in server_addr;
 
     if ((_sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         printf("create socket error");
         perror("socket");
-        exit(1);
+        return;
     }
+    int reuse = 1;
+    setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(int));
+
+    g_sockfd = _sockfd;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(2323);
     server_addr.sin_addr.s_addr = INADDR_ANY;
     bzero(&(server_addr.sin_zero), 8);
     if (bind(_sockfd,(struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1) {
         perror("bind socket error");
-        exit(1);
+        return;
     }
     if (listen(_sockfd, 10) == -1) {
         perror("listen");
-        exit(1);
+        return;
     }
     _epollfd = epoll_create(10);
     struct epoll_event event_list[10];
@@ -175,6 +171,8 @@ void Server::io() {
 }
 
 int main() {
+    signal(SIGINT, kiddo::exit);
+    //signal(SIGQUIT, kiddo::exit);
     kiddo::Server srv;
     srv.work();
     srv.io_td();
