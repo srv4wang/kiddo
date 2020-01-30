@@ -3,9 +3,10 @@
 #include <thread>
 #include <vector>
 
-#include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 
 #include <netinet/in.h>
 #include <signal.h>
@@ -17,7 +18,6 @@
 #include "ring_buffer.h"
 
 namespace kiddo {
-bool close_socket = false;
 int g_sockfd = 0;
 
 void exit(int sig) {
@@ -28,6 +28,13 @@ void exit(int sig) {
     signal(sig, SIG_DFL);
     raise(sig);
 }
+
+struct Request {
+    char data[4096];
+};
+struct Response {
+    char data[4096];
+};
 
 class Server {
 public:
@@ -52,7 +59,11 @@ private:
     unsigned int _epollfd;
     int _sockfd;
 
+    static thread_local Request _request;
+    static thread_local Response _response;
 };
+thread_local Request Server::_request;
+thread_local Response Server::_response;
 
 Server::~Server() {
 }
@@ -79,15 +90,20 @@ int Server::work_cb() {
             continue;
         }
         _fd_queue[index] = 0;
-        char buff[4096] = "";
+        memset(_request.data, 0, sizeof(_request.data));
+        memset(_response.data, 0, sizeof(_response.data));
+
+        char *recv_buff = _request.data;
+        char *send_buff = _response.data;
         // recv 
-        int num = recv(fd, buff, sizeof(buff), 0);
-        if (buff[0] == '\0') {
+        int num = recv(fd, recv_buff, sizeof(recv_buff), 0);
+        if (recv_buff[0] == '\0') {
             continue;
         }
+        send_buff = recv_buff;
         // send
-        printf("%s\n", buff);
-        send(fd, buff, sizeof(buff), 0);
+        printf("%s\n", send_buff);
+        send(fd, send_buff, sizeof(send_buff), 0);
     }
     return 0;
 }
@@ -152,11 +168,6 @@ void Server::io_cb() {
 
         } else  {
             // 0:no event or -1:event failed
-        }
-        if (close_socket) {
-            printf("close socket");
-            shutdown(_sockfd, SHUT_RDWR);
-            close(_sockfd);
         }
     }
 
