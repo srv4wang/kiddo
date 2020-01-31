@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "ring_buffer.h"
+#include "singleton.h"
 
 namespace kiddo {
 
@@ -27,23 +28,30 @@ public:
             _epollfd(0), _sockfd(0),_host(host), _port(port), _work_fun(nullptr) {
     }
     Server(int port=2605):Server(nullptr, port) {}
+
     virtual ~Server();
-    int io_td() {
-        std::thread t(&kiddo::Server::io_cb, this);
-        t.join();
-        return 0;
-    }
-    void io_cb();
 
-    int work();
-
-    int work_cb();
-
-    int listen_accept();
+    int run();
 
     void set_work_fun(work_fun_t& fun) {
         _work_fun = fun;
     }
+
+private:
+    // polling within IO thread
+    int polling();
+
+    void poll_cb();
+
+    // working threads
+    int working();
+
+    void work_cb();
+
+    int listen_accept();
+
+    virtual void initialize() {};
+    virtual void finalize() {};
 
 private:
     RingBuffer<int> _fd_queue;

@@ -3,7 +3,7 @@ SOURCE = $(wildcard *.cpp)
 OBJECT = $(patsubst %.cpp,%.o,$(SOURCE))
 DIR = $(shell dirname `pwd`)/lib
 CC = g++
-CFLAGS = -std=c++11 -pthread
+CFLAGS = -std=c++11 -pthread -Werror=return-type
 
 echo.out: $(LIB)
 	$(CC) $(CFLAGS) -L $(DIR) -lkiddo echo.cc -Wl,-rpath $(DIR) -o $@

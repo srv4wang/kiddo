@@ -21,16 +21,33 @@ void exit(int sig) {
 Server::~Server() {
 }
 
+int Server::run() {
+    int ret = 0;
+    if ((ret = working()) != 0) {
+        return ret;
+    }
+    if ((ret = polling()) != 0) {
+        return ret;
+    }
+    return ret;
+}
 
-int Server::work() {
+int Server::polling() {
+    std::thread t(&kiddo::Server::poll_cb, this);
+    t.join();
+    return 0;
+}
+
+int Server::working() {
     int cpu_core_num = get_cpu_core_num();
     int thread_num = 2 * cpu_core_num + 1;
     for (int i = 0; i < thread_num; ++i) {
         std::thread td(&kiddo::Server::work_cb, this);
         td.detach();
     }
+    return 0;
 }
-int Server::work_cb() {
+void Server::work_cb() {
     while (1) {
         int index = _fd_queue.get();
         if (index < 0) {
@@ -60,7 +77,6 @@ int Server::work_cb() {
         printf("%s\n", send_buff);
         send(fd, send_buff, sizeof(send_buff), 0);
     }
-    return 0;
 }
 
 int Server::listen_accept() {
@@ -77,7 +93,7 @@ int Server::listen_accept() {
     epoll_ctl(_epollfd, EPOLL_CTL_ADD, fd, &event);
     return 0;
 }
-void Server::io_cb() {
+void Server::poll_cb() {
     struct sockaddr_in server_addr;
 
     if ((_sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
