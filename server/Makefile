@@ -1,15 +1,15 @@
 LIB = libkiddo.so
 SOURCE = $(wildcard *.cpp)
 OBJECT = $(patsubst %.cpp,%.o,$(SOURCE))
-DIR = $(shell pwd)
+DIR = $(shell dirname `pwd`)/lib
 CC = g++
 CFLAGS = -std=c++11 -pthread
 
-ECHO: $(LIB)
-	$(CC) $(CFLAGS) -L $(DIR) -lkiddo echo.cc -Wl,-rpath $(DIR)
+echo.out: $(LIB)
+	$(CC) $(CFLAGS) -L $(DIR) -lkiddo echo.cc -Wl,-rpath $(DIR) -o $@
 
 $(LIB): $(OBJECT)
-	$(CC) $(CFLAGS) -fPIC -shared -o $@ $^ 
+	$(CC) $(CFLAGS) -fPIC -shared -o $(DIR)/$@ $^ 
 %.o: %.cpp
 	$(CC) $(CFLAGS) -fPIC -c -o $@ $^
 
