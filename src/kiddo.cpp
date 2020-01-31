@@ -1,4 +1,5 @@
 #include <atomic>
+#include <functional>
 #include <iostream>
 #include <thread>
 #include <vector>
@@ -36,9 +37,12 @@ struct Response {
     char data[4096];
 };
 
+using work_fun_t = std::function<int(Request&, Response&)>;
+
 class Server {
 public:
-    Server():_epollfd(0),_sockfd(0) {
+    Server():_epollfd(0), _sockfd(0) {
+        work_fun = NULL;
     }
     ~Server();
     int io_td() {
@@ -54,6 +58,10 @@ public:
 
     int listen_accept();
 
+    void set_work_fun(work_fun_t& fun) {
+        work_fun = fun;
+    }
+
 private:
     RingBuffer<int> _fd_queue;
     unsigned int _epollfd;
@@ -61,6 +69,8 @@ private:
 
     static thread_local Request _request;
     static thread_local Response _response;
+
+    work_fun_t work_fun;
 };
 thread_local Request Server::_request;
 thread_local Response Server::_response;
@@ -72,7 +82,6 @@ Server::~Server() {
 int Server::work() {
     int cpu_core_num = get_cpu_core_num();
     int thread_num = 2 * cpu_core_num + 1;
-    printf("td:%d\n", thread_num);
     for (int i = 0; i < thread_num; ++i) {
         std::thread td(&kiddo::Server::work_cb, this);
         td.detach();
@@ -100,7 +109,10 @@ int Server::work_cb() {
         if (recv_buff[0] == '\0') {
             continue;
         }
-        send_buff = recv_buff;
+        // work for business logic
+        if (work_fun != NULL) {
+            work_fun(_request, _response);
+        }
         // send
         printf("%s\n", send_buff);
         send(fd, send_buff, sizeof(send_buff), 0);
@@ -181,6 +193,8 @@ int main() {
     signal(SIGINT, kiddo::exit);
     //signal(SIGQUIT, kiddo::exit);
     kiddo::Server srv;
+    kiddo::work_fun_t echo = [](kiddo::Request& req, kiddo::Response& res){memcpy(res.data, req.data, sizeof(res.data));return 1;};
+    srv.set_work_fun(echo);
     srv.work();
     srv.io_td();
     
