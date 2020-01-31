@@ -34,9 +34,10 @@ using work_fun_t = std::function<int(Request&, Response&)>;
 
 class Server {
 public:
-    Server():_epollfd(0), _sockfd(0) {
-        work_fun = NULL;
+    Server(const char* host, int port=2605):
+            _epollfd(0), _sockfd(0),_host(host), _port(port), _work_fun(nullptr) {
     }
+    Server(int port):Server(nullptr, port) {}
     ~Server();
     int io_td() {
         std::thread t(&kiddo::Server::io_cb, this);
@@ -52,18 +53,20 @@ public:
     int listen_accept();
 
     void set_work_fun(work_fun_t& fun) {
-        work_fun = fun;
+        _work_fun = fun;
     }
 
 private:
     RingBuffer<int> _fd_queue;
     unsigned int _epollfd;
     int _sockfd;
+    const char* _host;
+    int _port;
 
     static thread_local Request _request;
     static thread_local Response _response;
 
-    work_fun_t work_fun;
+    work_fun_t _work_fun;
 };
 thread_local Request Server::_request;
 thread_local Response Server::_response;

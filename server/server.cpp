@@ -1,3 +1,5 @@
+#include <arpa/inet.h>
+
 #include "server.h"
 namespace kiddo {
 
@@ -46,8 +48,8 @@ int Server::work_cb() {
             continue;
         }
         // work for business logic
-        if (work_fun != NULL) {
-            work_fun(_request, _response);
+        if (_work_fun != NULL) {
+            _work_fun(_request, _response);
         }
         // send
         printf("%s\n", send_buff);
@@ -83,8 +85,12 @@ void Server::io_cb() {
 
     g_sockfd = _sockfd;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(2323);
-    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(_port);
+    if (_host == nullptr) {
+        server_addr.sin_addr.s_addr = INADDR_ANY;
+    } else {
+        server_addr.sin_addr.s_addr = inet_addr(_host);
+    }
     bzero(&(server_addr.sin_zero), 8);
     if (bind(_sockfd,(struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1) {
         perror("bind socket error");
@@ -121,20 +127,4 @@ void Server::io_cb() {
 
 }
 
-
-
 } // end of namespace
-/*
-
-int main() {
-    signal(SIGINT, kiddo::exit);
-    //signal(SIGQUIT, kiddo::exit);
-    kiddo::Server srv;
-    kiddo::work_fun_t echo = [](kiddo::Request& req, kiddo::Response& res){memcpy(res.data, req.data, sizeof(res.data));return 1;};
-    srv.set_work_fun(echo);
-    srv.work();
-    srv.io_td();
-    
-}
-*/
-
