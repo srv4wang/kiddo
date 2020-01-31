@@ -5,17 +5,6 @@
 #include <thread>
 #include <vector>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-
-#include <netinet/in.h>
-#include <signal.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
 #include "common.h"
 #include "ring_buffer.h"
 
@@ -37,8 +26,8 @@ public:
     Server(const char* host, int port=2605):
             _epollfd(0), _sockfd(0),_host(host), _port(port), _work_fun(nullptr) {
     }
-    Server(int port):Server(nullptr, port) {}
-    ~Server();
+    Server(int port=2605):Server(nullptr, port) {}
+    virtual ~Server();
     int io_td() {
         std::thread t(&kiddo::Server::io_cb, this);
         t.join();
