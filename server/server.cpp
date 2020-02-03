@@ -23,6 +23,9 @@ Server::~Server() {
 
 int Server::run() {
     int ret = 0;
+    if ((ret = timing()) != 0) {
+        return ret;
+    }
     if ((ret = working()) != 0) {
         return ret;
     }
@@ -30,6 +33,12 @@ int Server::run() {
         return ret;
     }
     return ret;
+}
+
+int Server::timing() {
+    std::thread t(&kiddo::Server::time_cb, this);
+    t.detach();
+    return 0;
 }
 
 int Server::polling() {
@@ -46,6 +55,26 @@ int Server::working() {
         td.detach();
     }
     return 0;
+}
+
+void Server::time_cb() {
+    std::unique_lock<std::mutex> lock(_timer_mutex);
+    while (1) {
+        _has_timer_task.wait(lock);
+        for (auto it = _timer_queue.begin(); it != _timer_queue.end();) {
+            long now = time(NULL);
+            long time_start_time = it->first;
+            const auto& timer = it->second;
+            if (time_start_time > now) {
+                break;
+            }
+            time_start_time = now + timer.interval;
+            timer.execute(this);
+            _timer_queue.erase(it++);
+            _timer_queue.insert(std::make_pair(time_start_time, timer));
+        }
+        
+    }
 }
 void Server::work_cb() {
     while (1) {
@@ -123,12 +152,21 @@ void Server::poll_cb() {
     }
     _epollfd = epoll_create(10);
     struct epoll_event event_list[10];
+    struct epoll_event event;
+    event.data.fd = _sockfd;
+    event.events = EPOLLIN|EPOLLET|EPOLLRDHUP;
+    epoll_ctl(_epollfd, EPOLL_CTL_ADD, _sockfd, &event);
+    int timeout = -1;
     while (1) {
-        struct epoll_event event;
-        event.data.fd = _sockfd;
-        event.events = EPOLLIN|EPOLLET|EPOLLRDHUP;
-        epoll_ctl(_epollfd, EPOLL_CTL_ADD, _sockfd, &event);
-        int ret = epoll_wait(_epollfd, event_list, 10, -1);
+        timeout = -1;
+        if (!_timer_queue.empty()) {
+            timeout = _timer_queue.begin()->second.interval;
+        }
+        int ret = epoll_wait(_epollfd, event_list, 10, timeout);
+        long now = time(NULL);
+        if (!_timer_queue.empty() && _timer_queue.begin()->first >= now) {
+            _has_timer_task.notify_one();
+        }
         if (ret > 0) {
             for (int i = 0; i < ret; ++i) {
                 struct epoll_event event = event_list[i];
@@ -141,8 +179,8 @@ void Server::poll_cb() {
                 }
             }
 
-        } else  {
-            // 0:no event or -1:event failed
+        } else {
+            // 0:no event -1:event failed
         }
     }
 

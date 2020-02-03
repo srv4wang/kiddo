@@ -3,12 +3,15 @@ LIB = libkiddo.so
 SOURCE = $(wildcard *.cpp)
 OBJECT = $(patsubst %.cpp,%.o,$(SOURCE))
 LIB_DIR = $(shell dirname `pwd`)/lib
-HEADER = $(shell dirname `pwd`)/server
+SERVER = $(shell dirname `pwd`)/server
 CC = g++
 CFLAGS = -std=c++11 -pthread -Werror=return-type
 
-$(BIN):
-	$(CC) $(CFLAGS) -I $(HEADER) -L $(LIB_DIR) -lkiddo main.cpp -Wl,-rpath $(LIB_DIR) -o $@
+$(BIN): main.cpp $(LIB)
+	$(CC) $(CFLAGS) -I $(SERVER) -L $(LIB_DIR) -lkiddo $< -Wl,-rpath $(LIB_DIR) -o $@
+
+$(LIB):
+	$(MAKE) -C $(SERVER)
 
 .PHONY: clean
 clean:
