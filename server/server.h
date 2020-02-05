@@ -7,6 +7,7 @@
 #include <iostream>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include "common.h"
 #include "ring_buffer.h"
@@ -76,6 +77,9 @@ private:
     virtual void initialize() {};
     virtual void finalize() {};
 
+public:
+    static std::vector<int> sockfd_list;
+
 private:
     RingBuffer<int> _fd_queue;
     std::multimap<long, TimerTask> _timer_queue;
@@ -93,6 +97,8 @@ private:
     static thread_local Response _response;
 
 };
+std::vector<int> Server:: sockfd_list;
+
 thread_local Request Server::_request;
 thread_local Response Server::_response;
 

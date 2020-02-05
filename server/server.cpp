@@ -10,18 +10,23 @@ namespace kiddo {
 
 void exit(int sig) {
     printf("rec signl:%d\n", sig);
-    printf("close socket");
-    shutdown(g_sockfd, SHUT_RDWR);
-    close(g_sockfd);
+    for (int sockfd: kiddo::Server::sockfd_list) {
+        printf("close socket:%d\n", sockfd);
+        shutdown(sockfd, SHUT_RDWR);
+        close(sockfd);
+    }
     signal(sig, SIG_DFL);
     raise(sig);
 }
-
 
 Server::~Server() {
 }
 
 int Server::run() {
+    signal(SIGINT,  kiddo::exit); /* Ctrl  C   */
+    signal(SIGQUIT, kiddo::exit); /* Ctrl  \   */
+    signal(SIGSEGV, kiddo::exit); /* core dump */
+
     int ret = 0;
     if ((ret = timing()) != 0) {
         return ret;
@@ -130,6 +135,7 @@ void Server::poll_cb() {
         perror("socket");
         return;
     }
+    sockfd_list.push_back(_sockfd);
     int reuse = 1;
     setsockopt(_sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(int));
 
